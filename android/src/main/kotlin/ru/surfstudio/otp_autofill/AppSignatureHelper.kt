@@ -16,17 +16,38 @@ private const val NUM_BASE64_CHAR = 11
 // https://github.com/googlearchive/android-credentials/blob/master/sms-verification/android/app/src/main/java/com/google/samples/smartlock/sms_verify/AppSignatureHelper.java
 class AppSignatureHelper(context: Context) : ContextWrapper(context) {
 
-    fun getAppSignatures(): List<String> {
-        return try {
-            val packageName = packageName
-            val packageManager = packageManager
-            val signatures = packageManager.getPackageInfo(packageName,
-                    PackageManager.GET_SIGNATURES).signatures
-            signatures.mapNotNull { hash(packageName, it.toCharsString()) }
-        } catch (e: PackageManager.NameNotFoundException) {
-            emptyList()
+    @Suppress("DEPRECATION")
+fun getAppSignatures(): List<String> {
+    return try {
+        val packageName = packageName
+        val packageManager = packageManager
+
+        val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            packageManager.getPackageInfo(
+                packageName,
+                PackageManager.GET_SIGNING_CERTIFICATES
+            )
+        } else {
+            packageManager.getPackageInfo(
+                packageName,
+                PackageManager.GET_SIGNATURES
+            )
         }
+
+        val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            packageInfo.signingInfo?.apkContentsSigners
+        } else {
+            packageInfo.signatures
+        }
+
+        signatures?.mapNotNull { sig ->
+            hash(packageName, sig.toCharsString())
+        } ?: emptyList()
+    } catch (e: Exception) {
+        emptyList()
     }
+}
+
 
     private fun hash(packageName: String, signature: String): String? {
         val appInfo = "$packageName $signature"
