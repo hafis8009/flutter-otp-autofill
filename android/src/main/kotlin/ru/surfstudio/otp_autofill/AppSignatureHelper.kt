@@ -12,18 +12,26 @@ private const val HASH_TYPE = "SHA-256"
 private const val NUM_HASHED_BYTES = 9
 private const val NUM_BASE64_CHAR = 11
 
-/// From Google Example App
-// https://github.com/googlearchive/android-credentials/blob/master/sms-verification/android/app/src/main/java/com/google/samples/smartlock/sms_verify/AppSignatureHelper.java
+/**
+ * Helper class to generate the app's SMS hash key used for SMS Retriever API.
+ * Based on Google's example implementation.
+ */
 class AppSignatureHelper(context: Context) : ContextWrapper(context) {
 
     fun getAppSignatures(): List<String> {
         return try {
-            val packageName = packageName
-            val packageManager = packageManager
-            val signatures = packageManager.getPackageInfo(packageName,
-                    PackageManager.GET_SIGNATURES).signatures
-            signatures.mapNotNull { hash(packageName, it.toCharsString()) }
+            val pkgName = packageName
+            val pkgManager = packageManager
+            // ✅ FIX: use safe-call to handle possible null signatures
+            val signatures = pkgManager
+                .getPackageInfo(pkgName, PackageManager.GET_SIGNATURES)
+                .signatures
+
+            // Kotlin 1.9 requires safe access to nullable arrays
+            signatures?.mapNotNull { hash(pkgName, it.toCharsString()) } ?: emptyList()
         } catch (e: PackageManager.NameNotFoundException) {
+            emptyList()
+        } catch (e: Exception) {
             emptyList()
         }
     }
@@ -34,12 +42,11 @@ class AppSignatureHelper(context: Context) : ContextWrapper(context) {
             val messageDigest = MessageDigest.getInstance(HASH_TYPE)
             messageDigest.update(appInfo.toByteArray(StandardCharsets.UTF_8))
             val hashSignature = messageDigest.digest().copyOfRange(0, NUM_HASHED_BYTES)
-            var base64Hash = Base64.encodeToString(hashSignature, Base64.NO_PADDING or Base64.NO_WRAP)
-            base64Hash = base64Hash.substring(0, NUM_BASE64_CHAR)
-            base64Hash
+            var base64Hash =
+                Base64.encodeToString(hashSignature, Base64.NO_PADDING or Base64.NO_WRAP)
+            base64Hash.substring(0, NUM_BASE64_CHAR)
         } catch (e: NoSuchAlgorithmException) {
             null
         }
     }
-
 }
